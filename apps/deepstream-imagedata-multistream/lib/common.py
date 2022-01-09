@@ -29,35 +29,19 @@ SERVICE_DEFINITION = [
             },
         },
         {
-        "blackList": {
+        "video-BlackList": {
             'obligaroty': {
                 'enabled':  'bool',
                 'source':   'str'
                 },
-            'optional': {
-                'generalFaceDectDbFile':    'str',
-                'checkWhiteList':           'bool',
-                'blacklistDbFile':          'str',
-                'whitelistDbFile':          'str',
-                'ignorePreviousDb':         'bool',
-                'saveFacesDb':              'bool'
-                }
             }
         },
         {
-        "whiteList": {
+        "video-WhiteList": {
             'obligaroty': {
                 'enabled':  'bool',
                 'source':   'str'
                 },
-            'optional': {
-                'generalFaceDectDbFile':    'str',
-                'checkBlackList':           'bool',
-                'blacklistDbFile':          'str',
-                'whitelistDbFile':          'str',
-                'ignorePreviousDb':         'bool',
-                'saveFacesDb':              'bool'
-                }
             }
         },
         {
@@ -112,7 +96,7 @@ def log_error(msg, _quit = True):
 
 
 def log_debug(msg):
-    print("\n------- %s -------" % msg)
+    print("\n------- %s -------\n" % msg)
 
 
 def log_warning(msg):

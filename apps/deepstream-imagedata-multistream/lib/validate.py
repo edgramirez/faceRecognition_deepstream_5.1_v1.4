@@ -7,7 +7,7 @@ def check_config_keys_exist(service_name, service_dictionary):
         for defined_service_parameter in com.SERVICE_DEFINITION[com.SERVICES[service_name]][service_name][group_of_parameters]:
             joint_elements.append(defined_service_parameter)
     for service_parameter in service_dictionary:
-        if service_parameter not in joint_elements:
+        if service_parameter != 'camera_mac_address' and  service_parameter not in joint_elements:
             com.log_error("Configuration error - Pameter: {}, does not exist in the service definition:".format(service_parameter))
     return True
 
@@ -46,14 +46,18 @@ def check_obligatory_keys(service_dictionaries, service_definition):
     return True
 
 
-def check_optional_keys(service_dictionaries, service_definition):
+def check_optional_keys(service_dictionaries, service):
     '''
     Validate the optional configuration recovered from server and its values
     '''
-    for defined_item in service_definition['optional'].keys():
+    if "optional" not in com.SERVICE_DEFINITION[com.SERVICES[service]]:
+        com.log_debug("Service {} does not have optinal parameters, all OK".format(service))
+        return True
+
+    for defined_item in com.SERVICE_DEFINITION[com.SERVICES[service]]['optional'].keys():
         for service_name in service_dictionaries:
-            if defined_item in service_dictionaries[service_name] and str(type(service_dictionaries[service_name][defined_item])).split("'")[1] != service_definition['optional'][defined_item]:
-                    com.log_error("Configuration error - Parameter '{}' value must be type : {}, Current value: {}".format(defined_item, service_definition['optional'][defined_item], str(type(service_dictionaries[service][defined_item])).split("'")[1]))
+            if defined_item in service_dictionaries[service_name] and str(type(service_dictionaries[service_name][defined_item])).split("'")[1] != com.SERVICE_DEFINITION[com.SERVICES[service]]['optional'][defined_item]:
+                    com.log_error("Configuration error - Parameter '{}' value must be type : {}, Current value: {}".format(defined_item, com.SERVICE_DEFINITION[com.SERVICES[service]]['optional'][defined_item], str(type(service_dictionaries[service][defined_item])).split("'")[1]))
 
     com.log_debug("All optional parameters are OK")
     return True
@@ -69,7 +73,7 @@ def check_service_against_definition(data):
             for parameters in data[srv_camera_id]:
                 check_config_keys_exist(parameters, data[srv_camera_id][parameters])
             check_obligatory_keys(data[srv_camera_id], com.SERVICE_DEFINITION[com.SERVICES[service]][service])
-            check_optional_keys(data[srv_camera_id], com.SERVICE_DEFINITION[com.SERVICES[service]][service])
+            check_optional_keys(data[srv_camera_id], service)
     return True
 
 
@@ -86,14 +90,17 @@ def get_config_filtered_by_active_service(config_data):
         com.log_error("Configuration error - Config data must be a dictionary - type: {} / content: {}".format(type(config_data), config_data))
     active_services = {}
 
-    for local_server_mac in config_data.keys():
-        # This variable will be incremented if the service name key already exists
-        for camera_mac in config_data[local_server_mac]:
-            for service in config_data[local_server_mac][camera_mac]:
-                if 'enabled' in config_data[local_server_mac][camera_mac][service] and config_data[local_server_mac][camera_mac][service]['enabled'] is True:
+    for camera_mac in config_data.keys():
+        if camera_mac == 'OK':
+            continue
+        for service in config_data[camera_mac]:
+            if 'enabled' in config_data[camera_mac][service]:
+                if config_data[camera_mac][service]['enabled'] == "True":
+                    config_data[camera_mac][service]['enabled'] = True
                     # Create new key only for the active service
-                    new_key_name = 'srv_' + local_server_mac + "_camera_" + camera_mac + '_' + service
-                    active_services[new_key_name] = {service: config_data[local_server_mac][camera_mac][service]}
+                    new_key_name = "camera_" + camera_mac + '_' + service
+                    active_services[new_key_name] = {service: config_data[camera_mac][service]}
+                    active_services[new_key_name][service].update({"camera_mac_address": camera_mac})
 
     if len(active_services) < 1:
         com.log_error("\nConfiguration does not contain any active service for this server: \n\n{}".format(config_data))
@@ -126,10 +133,10 @@ def get_config_filtered_by_local_mac(config_data):
 
 def parse_parameters_and_values_from_config(config_data):
     # filter config and get only data for this server using the mac to match
-    scfg = get_config_filtered_by_local_mac(config_data)
+    #scfg = get_config_filtered_by_local_mac(config_data)
 
     # filter config and get only data of active services
-    scfg = get_config_filtered_by_active_service(scfg)
+    scfg = get_config_filtered_by_active_service(config_data)
 
     # validate requested services exists in code
     validate_service_exists(scfg)

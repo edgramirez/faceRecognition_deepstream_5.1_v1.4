@@ -14,10 +14,10 @@ from datetime import datetime, timedelta
 #from random import randrange
 #import random
 
-global header
+#global header
+#header = None
 
 font = cv2.FONT_HERSHEY_SIMPLEX
-header = None
 
 ##### GENERIC FUNCTIONS
 
@@ -26,6 +26,7 @@ def get_supported_actions():
     return ('GET', 'POST', 'PUT', 'DELETE')
 
 
+'''
 def set_header(token_file = None):
     if token_file is None:
         token_file = os.environ['FACE_RECOGNITION_TOKEN']
@@ -35,12 +36,12 @@ def set_header(token_file = None):
         token_handler = com.open_file(token_file, 'r+')
         header = {'Content-type': 'application/json', 'X-KAIROS-TOKEN': token_handler.read().split('\n')[0]}
         print('Header correctly set')
-        return True
+        return  header
     com.log_error('Unable to read token')
+'''
 
 
-
-def get_server_info_from_server(abort_if_exception = True, quit_program = True):
+def get_server_info_from_server(header, abort_if_exception = True, quit_program = True):
     get_srv_info_url = com.GET_SERVER_CONFIG_URI
     for machine_id in com.get_machine_macaddresses():
         #machine_id = '00:04:4b:eb:f6:dd'  # HARDCODED MACHINE ID
@@ -48,10 +49,10 @@ def get_server_info_from_server(abort_if_exception = True, quit_program = True):
         data = {"id": machine_id}
         
         if abort_if_exception:
-            response = send_json(data, 'POST', get_srv_info_url)
+            response = send_json(header, data, 'POST', get_srv_info_url)
         else:
             options = {'abort_if_exception': False}
-            response = send_json(data, 'POST', get_srv_info_url, **options)
+            response = send_json(header, data, 'POST', get_srv_info_url, **options)
         
         if response.status_code == 200:
             try:
@@ -62,7 +63,7 @@ def get_server_info_from_server(abort_if_exception = True, quit_program = True):
                 com.log_debug("No error detected in the response")
             return json.loads(response.text)
         else:
-            return com.log_error("Unable to retrieve the device configuration from the Server. Server response".format(response), quit_program = quit_program)
+            return com.log_error("Unable to retrieve the device configuration from the Server. Server response: {}".format(response.text), quit_program)
 
 
 def get_server_info_from_file(file_path, abort_if_exception = True):
@@ -73,14 +74,14 @@ def get_server_info_from_file(file_path, abort_if_exception = True):
             if isinstance(data, dict):
                 return data
     if abort_if_exception:
-        return com.log_error("Unable to retrieve the device configuration from local file: {}".format(file_path), quit_program = abort_if_exception)
+        return com.log_error("Unable to retrieve the device configuration from local file: {}".format(file_path), abort_if_exception)
     return False
 
 
-def get_server_info(abort_if_exception = True, quit_program = True):
-    #scfg = get_server_info_from_server(abort_if_exception, quit_program)
-    scfg = False
+def get_server_info(header, abort_if_exception = True, quit_program = True):
+    scfg = get_server_info_from_server(header, abort_if_exception, quit_program)
 
+    scfg = False
     if scfg is False:
         scfg = get_server_info_from_file('configs/Server_Emulatation_configs_from_Excel.py', abort_if_exception)
 
@@ -88,9 +89,9 @@ def get_server_info(abort_if_exception = True, quit_program = True):
     return validate.parse_parameters_and_values_from_config(scfg)
 
 
-def send_json(payload, action, url = None, **options):
-    set_header()
-    global header
+def send_json(header, payload, action, url = None, **options):
+    #set_header()
+    #global header
 
     if action not in get_supported_actions() or url is None:
         raise Exception('Requested action: ({}) not supported. valid options are:'.format(action, get_supported_actions()))
@@ -112,6 +113,7 @@ def send_json(payload, action, url = None, **options):
                 r = requests.put(url, data=data, headers=header)
             else:
                 r = requests.delete(url, data=data, headers=header)
+            #com.log_debug('status: {}'.format(r.status_code))
             return r
         except requests.exceptions.ConnectionError as e:
             time.sleep(sleep_time)
@@ -192,7 +194,8 @@ def clasify_to_known_and_unknown(frame_image, face_locations, **kwargs):
         # If we found the face, label the face with some useful information.
         if metadata:
             print('uno ya visto')
-            time_at_door = datetime.now() - metadata['first_seen_this_interaction']
+            #time_at_door = datetime.now() - metadata['first_seen_this_interaction']
+            time_at_door = com.get_timestamp() - metadata['first_seen_this_interaction']
             face_label = f"{metadata['name']} {int(time_at_door.total_seconds())}s"
         else:  # If this is a new face, add it to our list of known faces
             if program_action == actions['read']:
@@ -373,13 +376,14 @@ def new_face_metadata(face_image, name = None, camera_id = None, confidence = No
     #if image_group and not image_group in com.IMAGE_GROUPS:
     #    com.log_error("Image type most be one of the followings or None: {}".format(com.IMAGE_GROUPS))
 
+    #today_now = datetime.now()
+    today_now = com.get_timestamp()
+
     if name is None:
-        name = camera_id + '_' + str(com.get_timestamp())
+        name = camera_id + '_' + str(today_now)
     else:
         if print_name:
             print('Saving face: {} in group: {}'.format(name, image_group))
-
-    today_now = datetime.now()
 
     return {
         'name': name,
@@ -463,11 +467,6 @@ def compare_data(data_file, known_faces_data, tolerated_difference_list):
                     print('last {}'.format(video_faces_metadata[best_index]['last_seen']))
                     print('distance: {}'.format(lowest_distances))
 
-    '''
-        if best_index:
-            #print('Face {} detected at {} {} {} {} {}'.format(metadata['name'], video_metadata['first_seen'], video_metadata['first_seen_this_interaction'], video_metadata['last_seen'], video_metadata['seen_count'], video_metadata['seen_frames']))
-            print('Face {} '.format(metadata['name']))
-    '''
 
 def read_video(video_input, data_file, **kwargs):
     video_capture = cv2.VideoCapture(video_input)
@@ -517,7 +516,8 @@ def read_video(video_input, data_file, **kwargs):
                 face_label = None
                 # If we found the face, label the face with some useful information.
                 if metadata:
-                    time_at_door = datetime.now() - metadata['first_seen_this_interaction']
+                    #time_at_door = datetime.now() - metadata['first_seen_this_interaction']
+                    time_at_door = com.get_timestamp() - metadata['first_seen_this_interaction']
                     face_label = f"{metadata['name']} {int(time_at_door.total_seconds())}s"
                 # If this is a brand new face, add it to our list of known faces
                 else:
