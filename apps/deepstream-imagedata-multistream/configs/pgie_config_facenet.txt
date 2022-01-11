@@ -67,9 +67,10 @@ labelfile-path=/opt/nvidia/deepstream/deepstream-5.0/sources/apps/redaction_with
 
 # Modelo solo clase con model.etlt
 tlt-model-key=nvidia_tlt
-tlt-encoded-model=/opt/nvidia/deepstream/deepstream-5.0/samples/models/tlt_pretrained_models/facedetect/model.etlt
+tlt-encoded-model=/home/aaeon/github/faceRecognition_deepstream_5.1_v1.4/apps/deepstream-imagedata-multistream/configs/model.etlt
 #tlt-encoded-model=/home/aaeon/github/faceRecognition_v1.3/apps/deepstream-imagedata-multistream/configs/model.etlt
-input-dims=3;544;960;0
+#input-dims=3;544;960;0
+infer-dims=3;544;960
 uff-input-blob-name=input_1
 batch-size=1
 process-mode=1
@@ -80,8 +81,9 @@ model-color-format=0
 network-mode=2
 num-detected-classes=1
 #filter-out-class-ids=1;2;3
-# edgar - inicialmente 0 pero se puede hacer que no analice todos los frames y haga uno si otro no       interval=0
-interval=1
+# edgar - inicialmente 0 pero se puede hacer que no analice todos los frames y haga uno si otro no interval=0
+# Es el número de frames que se salta para analizar el siguiente
+interval=6
 gie-unique-id=1
 #output-blob-names=output_bbox;output_cov
 output-blob-names=output_bbox/BiasAdd;output_cov/Sigmoid
@@ -114,13 +116,13 @@ detected-max-w=600    #1920
 detected-max-h=400    #1920
 
 
-#[osd]
+[osd]
 # enable=0 para desabilitar el display
-#enable=0
+enable=0
 
-#[tiled-display]
+[tiled-display]
 # enable=0 para desabilitar el display
-#enable=0
+enable=0
 
 #[sink0]
 #type=1 para desabilitar el display
