@@ -184,11 +184,11 @@ def get_camera_mac_address(camera_service_id):
 
 def get_group_type(camera_service_id):
     global scfg
-    try:
-        for service_name in scfg[camera_service_id]:
+    if camera_service_id in scfg:
+        for service_name in scfg[camera_service_id].keys():
             return service_name
-    except Exception as e:
-        com.log_error('get_group_type() - original exception: {}'.format(str(e)))
+    else:
+        com.log_error('get_group_type() - Unable to get the group type for key: {}'.format(camera_service_id))
 
 
 def set_recurrence_outputs_and_inputs(camera_service_id, input_output_db_name):
@@ -669,6 +669,7 @@ def classify_to_known_and_unknown(camera_service_id, image, obj_id, name, progra
             metadata, best_index, difference = biblio.lookup_known_face(img_encoding, known_face_encodings, known_face_metadata)
 
             current_group_type = get_group_type(camera_service_id)
+            print('Camara Service id: {}, Current Groupt Type: {}, streaming {}'.format(camera_service_id, current_group_type, pad_index))
 
             global header
             # Acciones para cuando NO hay coincidencia del rostro 
@@ -981,7 +982,7 @@ def decodebin_child_added(child_proxy,Object,name,user_data):
         Object.connect("child-added",decodebin_child_added,user_data)   
     if(is_aarch64() and name.find("nvv4l2decoder") != -1):
         print("Seting bufapi_version\n")
-        Object.set_property("bufapi-version",True)
+        Object.set_property("bufapi-version",True, None)
 
 def create_source_bin(index, uri):
     print("Creating source bin")
