@@ -81,7 +81,7 @@ model-color-format=0
 network-mode=2
 num-detected-classes=1
 #filter-out-class-ids=1;2;3
-# edgar - inicialmente 0 pero se puede hacer que no analice todos los frames y haga uno si otro no interval=0
+# Edgar -  inicialmente 0 pero se puede hacer que no analice todos los frames y haga uno si otro no interval=0
 # Es el número de frames que se salta para analizar el siguiente
 interval=6
 gie-unique-id=1

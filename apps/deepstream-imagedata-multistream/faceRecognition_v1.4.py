@@ -419,6 +419,8 @@ def get_known_faces_db(camera_service_id):
 def get_known_faces_indexes(camera_service_id):
     global known_faces_indexes_dictionary
 
+    #print(camera_service_id)
+
     if camera_service_id in known_faces_indexes_dictionary:
         return known_faces_indexes_dictionary[camera_service_id]
     return []
@@ -792,20 +794,26 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
     l_frame = batch_meta.frame_meta_list
 
     #save_image = False
+    ''' 
+    # 11 de Enero de 2021
+    # Todo este bloque se metio dentro del while externo, y con esto 
+    # se corrigio la aleatoriedad que estaba monstrando en cuanto a 
+    # empatar los servicios con su streaming correcto.
+    
     
     current_pad_index = pyds.NvDsFrameMeta.cast(l_frame.data).pad_index			# por que esta aqui... ???, lo comento
     #print("current pad index ", current_pad_index)
     camera_service_id = get_camera_service_id(current_pad_index)
     #print(" camera service ", camera_service_id )
     program_action = get_action(camera_service_id)
-    #print(" program action ", program_action) 
+    #print(" program action ", program_action," Pad Index  ",current_pad_index ) 
     delta = get_delta(camera_service_id)
     #print(" Delta ", delta )
     default_similarity = get_similarity(camera_service_id)
     known_face_metadata, known_face_encodings = get_known_faces_db(camera_service_id)
     tracking_absence_dict = get_tracking_absence_dict(camera_service_id)
     id_set = set()
-    
+    '''
 
     '''
     if program_action == com.SERVICE_DEFINITION[camera_service_id]['find']:
@@ -839,8 +847,11 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         except StopIteration:
             break
 
+
         frame_number = frame_meta.frame_num
         #print(" frame number  ==== ", frame_number)
+        #print(" program action ", program_action," Pad Index  ",current_pad_index ) 
+
         l_obj = frame_meta.obj_meta_list
         num_rects = frame_meta.num_obj_meta
         is_first_obj = True
@@ -854,11 +865,32 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         #PGIE_CLASS_ID_PLATE:0,
         #PGIE_CLASS_ID_MAKE:0,
         #PGIE_CLASS_ID_MODEL:0
+        
+        # Este bloque se movio aquí , estaba afuera del while más externo y provocaba 
+        # que el servicio no empatara con el stream correspondiente
 
+        #current_pad_index = pyds.NvDsFrameMeta.cast(l_frame.data).pad_index			
+        #camera_service_id = get_camera_service_id(current_pad_index)
+        
+        camera_service_id = get_camera_service_id(pyds.NvDsFrameMeta.cast(l_frame.data).pad_index)
+
+        program_action = get_action(camera_service_id)
+        delta = get_delta(camera_service_id)
+        default_similarity = get_similarity(camera_service_id)
+        known_face_metadata, known_face_encodings = get_known_faces_db(camera_service_id)
+        tracking_absence_dict = get_tracking_absence_dict(camera_service_id)
+        id_set = set()
+
+        # sección de control "prints"
+        #print("current pad index ", current_pad_index)
+        #print(" camera service ", camera_service_id )
+        #print(" program action ", program_action," Pad Index  ",current_pad_index ) 
+        #print(" Delta ", delta )
 
         #contador = 0
         while l_obj is not None:
             #contador += 1
+
             try: 
                 # Casting l_obj.data to pyds.NvDsObjectMeta
                 obj_meta = pyds.NvDsObjectMeta.cast(l_obj.data)
@@ -881,6 +913,10 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
 
                 if frame_image.size > FRAME_SIZE: 
                     name = None
+                    #print("Guardando ",obj_meta.object_id)
+                    # 11 de Enero 2022 ERM
+                    # El object ID es por streaming, d/
+                    
                     id_set.add(obj_meta.object_id)
                     known_faces_indexes = get_known_faces_indexes(camera_service_id)
                     #print("Confidencce =", obj_meta.confidence, "Object ID =",obj_meta.object_id,"Face_count=",obj_counter[PGIE_CLASS_ID_FACE],"Frame size ", frame_image.size)
@@ -898,6 +934,11 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         # Get frame rate through this probe
         fps_streams["stream{0}".format(frame_meta.pad_index)].get_fps()
         #print(frame_meta.pad_index)
+
+
+        '''
+        # 11 de Junio 2021
+        # Se va a evaluar el id_Set
 
         if id_set and known_faces_indexes:
             missing_ids = [id_item for id_item in known_faces_indexes if id_item not in id_set ]
@@ -925,7 +966,9 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
                 set_known_faces_indexes(camera_service_id, known_faces_indexes)
 
         # Siguientes lineas faltaban del archivo original deepstream_imagedata_multistream 
-        saved_count["stream_{}".format(frame_meta.pad_index)] += 1
+        #saved_count["stream_{}".format(frame_meta.pad_index)] += 1
+        '''
+
         try:
             l_frame = l_frame.next
         except StopIteration:
