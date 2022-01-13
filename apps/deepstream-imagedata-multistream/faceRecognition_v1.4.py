@@ -898,30 +898,14 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         fps_streams["stream{0}".format(frame_meta.pad_index)].get_fps()
         #print(frame_meta.pad_index)
 
-        if id_set and known_faces_indexes:
-            missing_ids = [id_item for id_item in known_faces_indexes if id_item not in id_set ]
+        # si no leemos ningun rostro 
+        if id_set:
+            missing_ids = set(known_faces_indexes) - id_set
             for item in missing_ids:
                 if item not in tracking_absence_dict:
                     tracking_absence_dict.update({item: 1})
                 else:
                     tracking_absence_dict[item] += 1
-
-        if save_image:
-            if program_action in com.SERVICE_DEFINITION[com.SERVICES['recurrence']].keys():
-                write_to_db(known_face_metadata, known_face_encodings, get_output_db_name(camera_service_id))
-            else:
-                target_metadata = get_found_faces(camera_service_id)
-                empty_encodings = []
-
-                for _x_ in range(len(target_metadata)):
-                    empty_encodings.append('')
-
-                write_to_db(target_metadata, empty_encodings, get_output_db_name(camera_service_id))
-
-            if id_set and known_faces_indexes:
-                known_faces_indexes, tracking_absence_dict = biblio.cleanup_tracking_list(known_faces_indexes, tracking_absence_dict, 80)
-                set_tracking_absence_dict(camera_service_id, tracking_absence_dict)
-                set_known_faces_indexes(camera_service_id, known_faces_indexes)
 
         # Siguientes lineas faltaban del archivo original deepstream_imagedata_multistream 
         saved_count["stream_{}".format(frame_meta.pad_index)] += 1
