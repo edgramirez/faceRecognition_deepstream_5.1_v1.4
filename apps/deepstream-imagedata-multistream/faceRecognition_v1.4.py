@@ -191,16 +191,6 @@ def get_group_type(camera_service_id):
         com.log_error('get_group_type() - Unable to get the group type for key: {}'.format(camera_service_id))
 
 
-def set_recurrence_outputs_and_inputs(camera_service_id, input_output_db_name):
-    encodings, metadata = [], []
-    if com.file_exists_and_not_empty(input_output_db_name):
-        encodings, metadata = biblio.read_pickle(input_output_db_name)
-
-    set_known_faces_db(camera_service_id, encodings, metadata)
-    set_output_db_name(camera_service_id, input_output_db_name)
-    return True
-
-
 def set_blacklist_db_outputs_and_inputs(srv_camera_id, input_output_db_name):
     global scfg
     search_db_name = com.BLACKLIST_DB_DIRECTORY + '/' + com.BLACKLIST_DB_NAME
@@ -308,10 +298,6 @@ def set_action(srv_camera_id, service_name):
             com.log_debug('Set "whiteList" variables for service id: {}'.format(srv_camera_id))
             set_whitelist_url(srv_camera_id)
             set_whitelist_db_outputs_and_inputs(srv_camera_id, input_output_db_name)
-        elif service_name in com.SERVICE_DEFINITION[com.SERVICES['recurrence']]:
-            com.log_debug('Set "recurrence" variables for service id: {}'.format(srv_camera_id))
-            #set_recurrence_outputs_and_inputs(camera_service_id, input_output_db_name)
-            set_recurrence_outputs_and_inputs(srv_camera_id, input_output_db_name)
         elif service_name in com.SERVICE_DEFINITION[com.SERVICES['ageAndGender']]:
             com.log_debug('Set "Age and Gender" variables for service id: {}'.format(srv_camera_id))
 
@@ -419,8 +405,6 @@ def get_known_faces_db(camera_service_id):
 def get_known_faces_indexes(camera_service_id):
     global known_faces_indexes_dictionary
 
-    #print(camera_service_id)
-
     if camera_service_id in known_faces_indexes_dictionary:
         return known_faces_indexes_dictionary[camera_service_id]
     return []
@@ -444,12 +428,11 @@ def update_not_applicable_id(camera_service_id, new_value, best_index = None):
     if best_index is not None:
         not_applicable_id[camera_service_id][best_index] = new_value
     else:
-        # check value was not previously registered in list
-        if camera_service_id in not_applicable_id:
-            if new_value not in not_applicable_id[camera_service_id]:
-                not_applicable_id[camera_service_id].append(new_value)
+        # if key is not already in the global dictionary 
+        if camera_service_id not in not_applicable_id:
+            not_applicable_id.update({camera_service_id: {new_value}})
         else:
-            not_applicable_id.update({camera_service_id: [new_value]})
+            not_applicable_id[camera_service_id].add(new_value)
 
 
 def get_tracking_absence_dict(camera_service_id):
@@ -564,22 +547,13 @@ def register_new_face_3(camera_service_id, face_encoding, image, confidence, dif
     update_known_faces_indexes(camera_service_id, obj_id)
 
 
-def update_known_faces_indexes(camera_service_id, new_value, best_index = None):
-    # TODO edgar referenciar todo con respecto del camera_service_id
+def update_known_faces_indexes(camera_service_id, new_value):
     global known_faces_indexes_dictionary
 
-    if best_index is not None:
-        print('no hace nada aun....')
+    if camera_service_id in known_faces_indexes_dictionary:
+        known_faces_indexes_dictionary[camera_service_id].append(new_value)
     else:
-        if camera_service_id in known_faces_indexes_dictionary:
-            known_faces_indexes_dictionary[camera_service_id].append(new_value)
-        else:
-            known_faces_indexes_dictionary.update({camera_service_id: [new_value]})
-        '''
-        # check value was not previously registered in list
-        if new_value not in known_faces_indexes_dictionary[camera_service_id]:
-            known_faces_indexes_dictionary[camera_service_id].append(new_value)
-        '''
+        known_faces_indexes_dictionary.update({camera_service_id: [new_value]})
 
 
 def get_gender_and_age(image):
@@ -596,187 +570,93 @@ def get_gender_and_age(image):
     print(f'Age: {age[1:-1]} years')
 
 
-def recurrence(camera_service_id, image, obj_id, name, program_action, confidence, frame_number, delta, default_similarity, known_faces_indexes, known_face_metadata, known_face_encodings):
-    difference = None
-
-    # We assume the delta time is always going to be so big that the id will change even with the same subject
-    if obj_id in known_faces_indexes:
-        return False
-
-    # Try to see if deepstream detected image can be face encoded image_encoding is None is not possible
-    img_encoding, img_metadata = biblio.encode_face_image(image, name, camera_service_id, confidence, False)
-
-    # is not in the know_faces_index but did not generate an encoding result
-    if img_encoding is None:
-        return False
-
-    metadata, best_index, difference = biblio.lookup_known_face(img_encoding, known_face_encodings, known_face_metadata)
-
-    update_known_faces_indexes(camera_service_id, obj_id)
-    # We found a subject that was previously detected
-    if best_index is not None:
-        today_now = datetime.now()
-        if today_now - known_face_metadata[best_index]['last_seen'] > timedelta(seconds=delta):
-            print("ya avistado: ", known_face_metadata[best_index]['name'], known_face_metadata[best_index]['last_seen'], known_face_metadata[best_index]['seen_count'], today_now, timedelta(seconds=delta))
-            known_face_metadata[best_index]['last_seen'] = today_now
-            known_face_metadata[best_index]['seen_count'] += 1
-            set_known_faces_db(camera_service_id, known_face_encodings, known_face_metadata)
-
-            data = {
-                    'faceId': known_face_metadata[best_index]['face_id'],
-                    'faceType': 1,
-                    'cameraID': camera_service_id,
-                    '#lastDate': today_now,
-                    'numberOfDetections': known_face_metadata[best_index]['seen_count'],
-                    'image': image
-                    }
-
-            #background_result = threading.Thread(target=send_json, args=(data, 'POST', get_face_detection_url(),))
-            #background_result.start()
-            return True
-    else:
-        # We found a new element
-        #face_label = 'visitor_' + str(len(known_face_metadata))
-        print('Nuevo elemento detectado visitor_', str(len(known_face_metadata)))
-        #register_new_face_3(camera_service_id, img_encoding, image, face_label, confidence, None, obj_id)
-        register_new_face_3(camera_service_id, img_encoding, image, confidence, None, obj_id)
-
-        get_gender_and_age(image)
-
-        return True
-
-
 def classify_to_known_and_unknown(camera_service_id, image, obj_id, name, program_action, confidence, frame_number, delta, default_similarity, known_faces_indexes, known_face_metadata, known_face_encodings, pad_index):
     # Using face_detection library, try to encode the image
     # update = False
     #best_index = None
 
-    if program_action in com.SERVICE_DEFINITION[com.SERVICES['recurrence']]:
-       return recurrence(camera_service_id, image, obj_id, name, program_action, confidence, frame_number, delta, default_similarity, known_faces_indexes, known_face_metadata, known_face_encodings, pad_index)
-    else:
-        not_applicable_id = get_not_applicable_id(camera_service_id, abort = False)
+    not_applicable_id = get_not_applicable_id(camera_service_id, abort = False)
 
-        if obj_id in not_applicable_id:
-            return False
+    if obj_id in not_applicable_id:
+        return False
 
-        if obj_id not in known_faces_indexes:
-            # codificando la imagen obtenida desde el streaming 
-            img_encoding, img_metadata = biblio.encode_face_image(image, name, camera_service_id, confidence, False)
+    if obj_id not in known_faces_indexes:
+        # codificando la imagen obtenida desde el streaming 
+        img_encoding, img_metadata = biblio.encode_face_image(image, name, camera_service_id, confidence, False)
 
-            # si el modelo de "face recognition" puede generar una codificacion de la imagen su valor es diferente de None
-            if img_encoding is None:
-                return  False
+        # si el modelo de "face recognition" puede generar una codificacion de la imagen su valor es diferente de None
+        if img_encoding is None:
+            return  False
 
-            # comparamos el rostro codificado que se obtuvo del streaming contra la BD de rostros a buscar
-            metadata, best_index, difference = biblio.lookup_known_face(img_encoding, known_face_encodings, known_face_metadata)
+        # comparamos el rostro codificado que se obtuvo del streaming contra la BD de rostros a buscar
+        metadata, best_index, difference = biblio.lookup_known_face(img_encoding, known_face_encodings, known_face_metadata)
 
-            current_group_type = get_group_type(camera_service_id)
-            print('Camara Service id: {}, Current Groupt Type: {}, streaming {}'.format(camera_service_id, current_group_type, pad_index))
+        current_group_type = get_group_type(camera_service_id)
+        print('Camara Service id: {}, Current Groupt Type: {}, streaming {}'.format(camera_service_id, current_group_type, pad_index))
 
-            global header
-            # Acciones para cuando NO hay coincidencia del rostro 
-            if best_index is None:
-                # Actualizando la lista de ids de los rostros no coincidentes
-                update_not_applicable_id(camera_service_id, obj_id)
+        global header
+        # Acciones para cuando NO hay coincidencia del rostro 
+        if best_index is None:
+            # Actualizando la lista de ids de los rostros no coincidentes
+            update_not_applicable_id(camera_service_id, obj_id)
 
-                if current_group_type == 'video-WhiteList':
-                    # we use .tolist() to transform the ndarray to list:  ----  TypeError: Object of type 'ndarray' is not JSON serializable
-                    epoc_time = com.get_timestamp()
-                    #img_encoding_as_list = img_encoding.tolist()
-                    img_encoding_as_list = str(img_encoding)
-                    data  = {
-                            'id': str(obj_id) + '_' + str(epoc_time),
-                            'camera-id': get_camera_mac_address(camera_service_id),
-                            'date': epoc_time,
-                            'image_encoding': img_encoding_as_list,
-                            'img_metadata': str(metadata)
-                            }
-                    #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
-                    background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
-                    background_result.start()
-                    print('Rostro con id: {}, streaming {}, no esta en la White list. Reportando incidente'.format(obj_id, pad_index))
-                    # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/notInWhiteList_' + str(obj_id) + ".jpg", image)
-                else:
-                    print('Rostro con id: {}, streaming {}, no esta en la Black list, todo ok'.format(obj_id, pad_index))
-                    # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/notInBlackList_' + str(obj_id) + ".jpg", image)
-
-                return False
-
-            # Acciones para cuando hay coincidencia del rostro 
-            if current_group_type == 'video-BlackList':
+            if current_group_type == 'video-WhiteList':
                 # we use .tolist() to transform the ndarray to list:  ----  TypeError: Object of type 'ndarray' is not JSON serializable
                 epoc_time = com.get_timestamp()
                 #img_encoding_as_list = img_encoding.tolist()
-                #img_encoding_as_list = img_encoding.tolist()
-                #json_metadata = metadata
-                #print(json_metadata.keys())
-                #print(type(json_metadata))
-                #quit()
+                img_encoding_as_list = str(img_encoding)
                 data  = {
-                    'id': str(obj_id) + '_' + str(epoc_time),
-                    'camera-id': get_camera_mac_address(camera_service_id),
-                    'date': epoc_time,
-                    'blacklist_match_name': metadata['name'],
-                    'image_encoding': str(img_encoding),
-                    'img_metadata': str(metadata)
-                    }
+                        'id': str(obj_id) + '_' + str(epoc_time),
+                        'camera-id': get_camera_mac_address(camera_service_id),
+                        'date': epoc_time,
+                        'image_encoding': img_encoding_as_list,
+                        'img_metadata': str(metadata)
+                        }
                 #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
                 background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
                 background_result.start()
-                print('Rostro con id: {} coincide con elemento {} en la Black list , streaming {}'.format(obj_id, metadata['name'], pad_index))
-                # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/BlackListMatch_' + str(obj_id) + "_with_" + metadata['name'] + ".jpg", image)
+                print('Rostro con id: {}, streaming {}, no esta en la White list. Reportando incidente'.format(obj_id, pad_index))
+                # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/notInWhiteList_' + str(obj_id) + ".jpg", image)
             else:
-                print('Rostro con id: {} coincide con elemento {} en la White list, streaming {}, todo Ok nada que reportar'.format(obj_id, metadata['name'], pad_index))
-                # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/WhiteListMatch_' + str(obj_id) + "_with_" + metadata['name'] + ".jpg", image)
+                print('Rostro con id: {}, streaming {}, no esta en la Black list, todo ok'.format(obj_id, pad_index))
+                # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/notInBlackList_' + str(obj_id) + ".jpg", image)
 
-            # obtine la estructura y datos actuales de los rostros encontrados 
-            found_faces = get_found_faces(camera_service_id)
-            today_now = datetime.now()
-            i = 0
-            for found_face in found_faces:
-                if found_face['name'] == metadata['name']:
-                    if today_now - found_faces[i]['last_seen'][-1] > timedelta(seconds=delta):
-                        found_faces[i]['seen_count'] += 1
+            return False
 
-                    found_faces[i]['face_id'].append(obj_id)
-                    found_faces[i]['seen_frames'].append(frame_number)
-                    found_faces[i]['last_seen'].append(today_now)
-
-                    if confidence - found_face['confidence'][-1] > 0.0038 and found_faces[i]['difference'][-1] > difference: 
-                        #print('Sujeto1 {}, encontrado en frame {} con id: {} ,confidence: n{}/o{}, distance: n{}/o{}'.format(metadata['name'], frame_number, obj_id, confidence, found_face['confidence'][-1], difference, found_faces[i]['difference'][-1]))
-                        found_faces[i]['confidence'].append(confidence)
-                        found_faces[i]['difference'].append(difference)
-                        found_faces[i]['image'].append(image)
-
-                    # actualiza las variables globales
-                    #print('Sujeto1.1 {}, encontrado en frame {} con id: {} ,confidence: n{}/o{}, distance: n{}/o{}'.format(metadata['name'], frame_number, obj_id, confidence, found_face['confidence'][-1], difference, found_faces[i]['difference'][-1]))
-                    save_found_faces(camera_service_id, found_faces)
-                    update_known_faces_indexes(camera_service_id, obj_id)
-                    return True
-                i += 1
-
-            #print('Sujeto1.2 {}, encontrado en frame {} con id: {} ,confidence: {}, distance: {}'.format(metadata['name'], frame_number, obj_id, confidence, difference))
-            found_faces.append({
-                'name': metadata['name'],
-                'face_id': [obj_id],
-                'first_seen': today_now,
-                'last_seen': [today_now],
-                'confidence': [confidence],
-                'difference': [difference],
-                'seen_frames': [frame_number],
-                'image': [image],
-                'seen_count': 1
-                })
-
-            # actualiza las variables globales
-            save_found_faces(camera_service_id, found_faces)
-            update_known_faces_indexes(camera_service_id, obj_id)
-            return True
-
-            # ID already in the list of IDs
+        # Acciones para cuando hay coincidencia del rostro 
+        if current_group_type == 'video-BlackList':
+            # we use .tolist() to transform the ndarray to list:  ----  TypeError: Object of type 'ndarray' is not JSON serializable
+            epoc_time = com.get_timestamp()
+            #img_encoding_as_list = img_encoding.tolist()
+            #img_encoding_as_list = img_encoding.tolist()
+            #json_metadata = metadata
+            #print(json_metadata.keys())
+            #print(type(json_metadata))
+            #quit()
+            data  = {
+                'id': str(obj_id) + '_' + str(epoc_time),
+                'camera-id': get_camera_mac_address(camera_service_id),
+                'date': epoc_time,
+                'blacklist_match_name': metadata['name'],
+                'image_encoding': str(img_encoding),
+                'img_metadata': str(metadata)
+                }
+            #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
+            background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
+            background_result.start()
+            print('Rostro con id: {} coincide con elemento {} en la Black list , streaming {}'.format(obj_id, metadata['name'], pad_index))
+            # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/BlackListMatch_' + str(obj_id) + "_with_" + metadata['name'] + ".jpg", image)
         else:
-            return False # no hace nada para ids ya identificados
-    return False
+            print('Rostro con id: {} coincide con elemento {} en la White list, streaming {}, todo Ok nada que reportar'.format(obj_id, metadata['name'], pad_index))
+            # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/WhiteListMatch_' + str(obj_id) + "_with_" + metadata['name'] + ".jpg", image)
+
+        update_known_faces_indexes(camera_service_id, obj_id)
+        return True
+
+        # ID already in the list of IDs
+    else:
+        return False # no hace nada para ids ya identificados
+
 
 def tiler_sink_pad_buffer_probe(pad, info, u_data):
     global fake_frame_number
@@ -835,7 +715,7 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         donothin = 'till we get the described logic'
     '''
 
-
+    contador = 0
     while l_frame is not None:
         try:
             # Note that l_frame.data needs a cast to pyds.NvDsFrameMeta
@@ -887,9 +767,8 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         #print(" program action ", program_action," Pad Index  ",current_pad_index ) 
         #print(" Delta ", delta )
 
-        #contador = 0
         while l_obj is not None:
-            #contador += 1
+            contador += 1
 
             try: 
                 # Casting l_obj.data to pyds.NvDsObjectMeta
@@ -936,19 +815,15 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
         #print(frame_meta.pad_index)
 
         # si no leemos ningun rostro no ejecutamos el bloque
-        if id_set:
+        if id_set and known_faces_indexes and contador % 3 == 0:
             missing_ids = set(known_faces_indexes) - id_set
             for item in missing_ids:
                 if item not in tracking_absence_dict:
                     tracking_absence_dict.update({item: 1})
                 else:
                     tracking_absence_dict[item] += 1
-
-            if len(tracking_absence_dict) > 80:
-                known_faces_indexes, tracking_absence_dict = biblio.cleanup_tracking_list(known_faces_indexes, tracking_absence_dict, 80)
-                set_tracking_absence_dict(camera_service_id, tracking_absence_dict)
-                set_known_faces_indexes(camera_service_id, known_faces_indexes)
-
+                    if tracking_absence_dict[item] > 5:
+                        tracking_absence_dict.pop(item)
 
         try:
             l_frame = l_frame.next
