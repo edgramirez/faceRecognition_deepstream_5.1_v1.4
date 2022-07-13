@@ -290,11 +290,11 @@ def set_action(srv_camera_id, service_name):
 
         if service_name == com.SERVICE_DEFINITION[com.SERVICES['find']]:
             com.log_debug('Set "find" variables for service id: {}'.format(srv_camera_id))
-        elif service_name in com.SERVICE_DEFINITION[com.SERVICES['video-BlackList']] and com.BLACKLIST_DB_NAME:
-            com.log_debug('Set "video-BlackList" variables for service id: {}'.format(srv_camera_id))
+        elif service_name in com.SERVICE_DEFINITION[com.SERVICES['blackList']] and com.BLACKLIST_DB_NAME:
+            com.log_debug('Set "blackList" variables for service id: {}'.format(srv_camera_id))
             set_blacklist_url(srv_camera_id)
             set_blacklist_db_outputs_and_inputs(srv_camera_id, input_output_db_name)
-        elif service_name in com.SERVICE_DEFINITION[com.SERVICES['video-WhiteList']] and com.WHITELIST_DB_NAME:
+        elif service_name in com.SERVICE_DEFINITION[com.SERVICES['whiteList']] and com.WHITELIST_DB_NAME:
             com.log_debug('Set "whiteList" variables for service id: {}'.format(srv_camera_id))
             set_whitelist_url(srv_camera_id)
             set_whitelist_db_outputs_and_inputs(srv_camera_id, input_output_db_name)
@@ -595,27 +595,30 @@ def classify_to_known_and_unknown(camera_service_id, image, obj_id, name, progra
         print('Camara Service id: {}, Current Groupt Type: {}, streaming {}'.format(camera_service_id, current_group_type, pad_index))
 
         global header
+        url_harcoded = "http://3.219.81.19:8888/posts/blackAndWhite"
         # Acciones para cuando NO hay coincidencia del rostro 
         if best_index is None:
             # Actualizando la lista de ids de los rostros no coincidentes
             update_not_applicable_id(camera_service_id, obj_id)
 
-            if current_group_type == 'video-WhiteList':
+            if current_group_type == 'whiteList':
                 # we use .tolist() to transform the ndarray to list:  ----  TypeError: Object of type 'ndarray' is not JSON serializable
                 epoc_time = com.get_timestamp()
                 #img_encoding_as_list = img_encoding.tolist()
                 img_encoding_as_list = str(img_encoding)
                 data  = {
-                        'id': str(obj_id) + '_' + str(epoc_time),
-                        'camera-id': get_camera_mac_address(camera_service_id),
-                        'date': epoc_time,
-                        'image_encoding': img_encoding_as_list,
-                        'img_metadata': str(metadata)
+                        "clientId": "Estadio Olmeca. SA de CV",
+                        "cameraId": get_camera_mac_address(camera_service_id),
+                        "listType": current_group_type,
+                        "matchedId": None,
+                        "matchedName": None
                         }
+                print("sending ", current_group_type, " to POST url: ", url_harcoded)
+                biblio.send_json(data, 'POST', url_harcoded)
                 #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
-                background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
-                background_result.start()
-                print('Rostro con id: {}, streaming {}, no esta en la White list. Reportando incidente'.format(obj_id, pad_index))
+                # EDGAR en espera de tener un url: background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
+                # EDGAR en espera de tener un url: background_result.start()
+                print('Rostro con id: {}, streaming {}, no esta en la White list. Reportando incidente -------------------------------------***'.format(obj_id, pad_index))
                 # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/notInWhiteList_' + str(obj_id) + ".jpg", image)
             else:
                 print('Rostro con id: {}, streaming {}, no esta en la Black list, todo ok'.format(obj_id, pad_index))
@@ -624,7 +627,7 @@ def classify_to_known_and_unknown(camera_service_id, image, obj_id, name, progra
             return False
 
         # Acciones para cuando hay coincidencia del rostro 
-        if current_group_type == 'video-BlackList':
+        if current_group_type == 'blackList':
             # we use .tolist() to transform the ndarray to list:  ----  TypeError: Object of type 'ndarray' is not JSON serializable
             epoc_time = com.get_timestamp()
             #img_encoding_as_list = img_encoding.tolist()
@@ -634,17 +637,19 @@ def classify_to_known_and_unknown(camera_service_id, image, obj_id, name, progra
             #print(type(json_metadata))
             #quit()
             data  = {
-                'id': str(obj_id) + '_' + str(epoc_time),
-                'camera-id': get_camera_mac_address(camera_service_id),
-                'date': epoc_time,
-                'blacklist_match_name': metadata['name'],
-                'image_encoding': str(img_encoding),
-                'img_metadata': str(metadata)
-                }
-            #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
-            background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
-            background_result.start()
+                    "clientId": "Estadio Olmeca. SA de CV",
+                    "cameraId": get_camera_mac_address(camera_service_id),
+                    "listType": current_group_type,
+                    "matchedId": str(metadata['face_id']),
+                    "matchedName": str(metadata['name'])
+                    }
+            print("sending ", current_group_type, " to POST url: ", url_harcoded)
+            print(data)
             print('Rostro con id: {} coincide con elemento {} en la Black list , streaming {}'.format(obj_id, metadata['name'], pad_index))
+            biblio.send_json(data, 'POST', url_harcoded)
+            #biblio.send_json(data, 'POST', get_service_url(camera_service_id))
+            # EDGAR en espera de tener un url: background_result = threading.Thread(target=biblio.send_json, args=(header, data, 'POST', get_service_url(camera_service_id),))
+            # EDGAR en espera de tener un url: background_result.start()
             # Activar solo para visualizar imagen ---- cv2.imwrite(com.RESULTS_DIRECTORY + '/BlackListMatch_' + str(obj_id) + "_with_" + metadata['name'] + ".jpg", image)
         else:
             print('Rostro con id: {} coincide con elemento {} en la White list, streaming {}, todo Ok nada que reportar'.format(obj_id, metadata['name'], pad_index))
@@ -726,7 +731,6 @@ def tiler_sink_pad_buffer_probe(pad, info, u_data):
             frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
         except StopIteration:
             break
-
 
         frame_number = frame_meta.frame_num
         #print(" frame number  ==== ", frame_number)
@@ -881,7 +885,8 @@ def decodebin_child_added(child_proxy,Object,name,user_data):
         Object.connect("child-added",decodebin_child_added,user_data)   
     if(is_aarch64() and name.find("nvv4l2decoder") != -1):
         print("Seting bufapi_version\n")
-        Object.set_property("bufapi-version",True, None)
+        Object.set_property("bufapi-version",True)
+        #Object.set_property("bufapi-version",True, None)
 
 def create_source_bin(index, uri):
     print("Creating source bin")

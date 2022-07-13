@@ -29,7 +29,7 @@ SERVICE_DEFINITION = [
             },
         },
         {
-        "video-BlackList": {
+        "blackList": {
             'obligaroty': {
                 'enabled':  'bool',
                 'source':   'str'
@@ -37,7 +37,7 @@ SERVICE_DEFINITION = [
             }
         },
         {
-        "video-WhiteList": {
+        "whiteList": {
             'obligaroty': {
                 'enabled':  'bool',
                 'source':   'str'
