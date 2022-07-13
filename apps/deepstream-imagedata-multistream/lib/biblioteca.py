@@ -26,7 +26,6 @@ def get_supported_actions():
     return ('GET', 'POST', 'PUT', 'DELETE')
 
 
-'''
 def set_header(token_file = None):
     if token_file is None:
         token_file = os.environ['FACE_RECOGNITION_TOKEN']
@@ -34,11 +33,11 @@ def set_header(token_file = None):
     if com.file_exists(token_file):
         global header
         token_handler = com.open_file(token_file, 'r+')
-        header = {'Content-type': 'application/json', 'X-KAIROS-TOKEN': token_handler.read().split('\n')[0]}
+        #header = {'Content-type': 'application/json', 'X-KAIROS-TOKEN': token_handler.read().split('\n')[0]}
+        header = {'Content-type': 'application/json'}
         print('Header correctly set')
         return  header
     com.log_error('Unable to read token')
-'''
 
 
 def get_server_info_from_server(header, abort_if_exception = True, quit_program = True):
@@ -79,7 +78,7 @@ def get_server_info_from_file(file_path, abort_if_exception = True):
 
 
 def get_server_info(header, abort_if_exception = True, quit_program = True):
-    scfg = get_server_info_from_server(header, abort_if_exception, quit_program)
+    #scfg = get_server_info_from_server(header, abort_if_exception, quit_program)
 
     scfg = False
     if scfg is False:
@@ -89,9 +88,9 @@ def get_server_info(header, abort_if_exception = True, quit_program = True):
     return validate.parse_parameters_and_values_from_config(scfg)
 
 
-def send_json(header, payload, action, url = None, **options):
-    #set_header()
-    #global header
+def send_json(payload, action, url = None, **options):
+    set_header()
+    global header
 
     if action not in get_supported_actions() or url is None:
         raise Exception('Requested action: ({}) not supported. valid options are:'.format(action, get_supported_actions()))
@@ -113,12 +112,11 @@ def send_json(header, payload, action, url = None, **options):
                 r = requests.put(url, data=data, headers=header)
             else:
                 r = requests.delete(url, data=data, headers=header)
-            #com.log_debug('status: {}'.format(r.status_code))
             return r
         except requests.exceptions.ConnectionError as e:
             time.sleep(sleep_time)
             if retry == retries - 1 and abort_if_exception:
-                raise Exception("Unable to Connect to the server after {} retries\n. Original exception: {}".format(retry, str(e)))
+                raise Exception("Unable to Connect to the server: "+url+" after "+retries+" retries\n. Original exception: "+e)
         except requests.exceptions.HTTPError as e:
             time.sleep(sleep_time)
             if retry == retries - 1 and abort_if_exception:
@@ -347,6 +345,7 @@ def encode_face_image(face_obj, face_name, camera_id, confidence, print_name, im
 
     # try to get the location of the face if there is one
     #face_location = face_recognition.face_locations(rgb_small_frame, number_of_times_to_upsample=2, model='cnn')
+    #face_location = face_recognition.face_locations(rgb_small_frame, model='cnn')
     #face_location = face_recognition.face_locations(rgb_small_frame, model='cnn')
     face_location = face_recognition.face_locations(rgb_small_frame)
 
